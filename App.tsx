@@ -7,168 +7,139 @@ import ShoppingList from './components/ShoppingList';
 import CalendarView from './components/CalendarView';
 import RecipeLibrary from './components/RecipeLibrary';
 import AgreementsList from './components/AgreementsList';
-import { Meal, ShoppingItem, Appointment, Recipe, Agreement, Category } from './types';
-import { ICONS } from './constants';
+import { Meal, ShoppingItem, Appointment, Recipe, Agreement } from './types';
+import { ICONS, COLORS } from './constants';
 
-const STORAGE_KEY = 'THIS_IS_US_DATA_V2';
+const STORAGE_KEY = 'THIS_IS_US_APP_DATA';
 
 const App: React.FC = () => {
   const [activeScreen, setActiveScreen] = useState('dashboard');
   const [isSyncing, setIsSyncing] = useState(false);
-  const [locationError, setLocationError] = useState<string | null>(null);
+  const [isSharingLocation, setIsSharingLocation] = useState(false);
   
-  // Inicialização de estados
   const [meals, setMeals] = useState<Meal[]>([]);
   const [shoppingItems, setShoppingItems] = useState<ShoppingItem[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [agreements, setAgreements] = useState<Agreement[]>([]);
 
-  // Carregamento Seguro (Hydration)
+  // Carregamento de dados com tratamento de erro
   useEffect(() => {
-    const initData = () => {
-      try {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (saved) {
-          const data = JSON.parse(saved);
-          setMeals(data.meals || []);
-          setShoppingItems(data.shoppingItems || []);
-          setAppointments(data.appointments || []);
-          setRecipes(data.recipes || []);
-          setAgreements(data.agreements || []);
-        } else {
-          // Defaults para novos usuários
-          setRecipes([{ id: 'r1', title: 'Carbonara da Família', ingredients: ['Massa', 'Pancetta', 'Ovos'], instagramUrl: 'https://instagram.com' }]);
-          setAgreements([{ id: 'ag1', text: 'Domingo é dia de planejar a semana juntos', status: 'pending' }]);
-        }
-      } catch (e) {
-        console.error("Erro crítico ao ler LocalStorage:", e);
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const data = JSON.parse(saved);
+        setMeals(data.meals || []);
+        setShoppingItems(data.shoppingItems || []);
+        setAppointments(data.appointments || []);
+        setRecipes(data.recipes || []);
+        setAgreements(data.agreements || []);
+      } else {
+        // Mock inicial para visualização
+        setRecipes([{ id: '1', title: 'Risoto de Cogumelos', ingredients: ['Arroz arbóreo', 'Shitake', 'Vinho branco'] }]);
+        setAgreements([{ id: '1', text: 'Sempre avisar quando estiver saindo do trabalho', status: 'pending' }]);
       }
-    };
-    initData();
+    } catch (e) {
+      console.error("Erro ao carregar dados:", e);
+    }
   }, []);
 
-  // Persistência com Efeito de Sincronização (Robustez)
+  // Persistência automática (Debounced)
   useEffect(() => {
-    const saveData = async () => {
+    const timer = setTimeout(() => {
       setIsSyncing(true);
-      const dataToSave = { meals, shoppingItems, appointments, recipes, agreements };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
-      
-      // Simula latência de rede para feedback visual de backend
-      setTimeout(() => setIsSyncing(false), 800);
-    };
-
-    const timeout = setTimeout(saveData, 500); // Debounce de salvamento
-    return () => clearTimeout(timeout);
+      const data = { meals, shoppingItems, appointments, recipes, agreements };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      setTimeout(() => setIsSyncing(false), 600);
+    }, 1000);
+    return () => clearTimeout(timer);
   }, [meals, shoppingItems, appointments, recipes, agreements]);
 
-  // Handler de Localização Robusto
   const handleRequestLocation = useCallback(() => {
-    if (!navigator.geolocation) {
-      setLocationError("Geolocalização não suportada.");
-      return;
-    }
-
+    if (!navigator.geolocation) return;
+    setIsSharingLocation(true);
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        console.log("Localização obtida:", pos.coords.latitude, pos.coords.longitude);
-        alert("Localização compartilhada com sucesso com seu par!");
-        setLocationError(null);
+      () => {
+        setTimeout(() => setIsSharingLocation(false), 3000); // Feedback visual temporário
       },
-      (err) => {
-        console.warn("Erro de localização:", err.message);
-        setLocationError("Permissão de localização negada ou bloqueada.");
-      }
+      () => setIsSharingLocation(false)
     );
   }, []);
 
-  const renderScreen = () => {
+  const renderActiveScreen = () => {
     switch (activeScreen) {
       case 'dashboard':
         return <Dashboard 
-                  meals={meals} 
-                  appointments={appointments} 
-                  agreements={agreements}
-                  onNavigate={(screen) => {
-                    if (screen === 'location') handleRequestLocation();
-                    else setActiveScreen(screen);
-                  }} 
-               />;
+          meals={meals} 
+          appointments={appointments} 
+          agreements={agreements} 
+          onNavigate={(s) => s === 'location' ? handleRequestLocation() : setActiveScreen(s)}
+          isSharingLocation={isSharingLocation}
+        />;
       case 'meals':
         return <MealPlanner meals={meals} recipes={recipes} onUpdateMeal={(m) => setMeals(prev => [...prev.filter(x => x.day !== m.day), m].sort((a,b) => a.day - b.day))} />;
       case 'shopping':
         return <ShoppingList 
-                  items={shoppingItems} 
-                  onToggle={(id) => setShoppingItems(prev => prev.map(i => i.id === id ? {...i, checked: !i.checked} : i))}
-                  onAdd={(name, cat) => setShoppingItems(prev => [{id: Math.random().toString(36), name, category: cat, checked: false}, ...prev])}
-                  onClear={() => setShoppingItems([])}
-               />;
+          items={shoppingItems} 
+          onToggle={(id) => setShoppingItems(prev => prev.map(i => i.id === id ? {...i, checked: !i.checked} : i))}
+          onAdd={(name, cat) => setShoppingItems(prev => [{id: Math.random().toString(36), name, category: cat, checked: false}, ...prev])}
+          onClear={() => setShoppingItems([])}
+        />;
       case 'calendar':
         return <CalendarView appointments={appointments} onAdd={(a) => setAppointments(prev => [...prev, a])} />;
       case 'recipes':
         return <RecipeLibrary recipes={recipes} onAdd={(r) => setRecipes(prev => [...prev, r])} />;
       case 'agreements':
         return <AgreementsList 
-                  agreements={agreements}
-                  onAdd={(t) => setAgreements(prev => [{id: Math.random().toString(36), text: t, status: 'pending'}, ...prev])}
-                  onToggle={(id) => setAgreements(prev => prev.map(a => a.id === id ? {...a, status: a.status === 'pending' ? 'resolved' : 'pending'} : a))}
-               />;
+          agreements={agreements}
+          onAdd={(t) => setAgreements(prev => [{id: Math.random().toString(36), text: t, status: 'pending'}, ...prev])}
+          onToggle={(id) => setAgreements(prev => prev.map(a => a.id === id ? {...a, status: a.status === 'pending' ? 'resolved' : 'pending'} : a))}
+        />;
       case 'more':
         return (
-          <div className="pt-12 px-6 space-y-4 animate-fade-in">
-            <h2 className="text-2xl font-serif mb-8 text-[#2C332E]">Configurações</h2>
-            
-            <button onClick={() => setActiveScreen('recipes')} className="w-full bg-white p-6 rounded-[2rem] flex items-center justify-between shadow-sm border border-gray-100 active:scale-95 transition-transform">
-              <div className="flex items-center gap-4">
-                <div className="bg-pink-50 text-pink-500 p-3 rounded-2xl">{ICONS.Utensils}</div>
-                <div className="text-left">
-                  <p className="font-bold text-gray-800">Receitas do Insta</p>
-                  <p className="text-xs text-gray-400">Sua biblioteca salva</p>
+          <div className="pt-16 px-6 space-y-6 animate-slide-up">
+            <h2 className="text-3xl font-serif text-sage-600">Configurações</h2>
+            <div className="space-y-4">
+              <button onClick={() => setActiveScreen('recipes')} className="w-full bg-white p-6 rounded-[2.5rem] flex items-center justify-between shadow-sm active:scale-95 transition-transform">
+                <div className="flex items-center gap-4">
+                  <div className="bg-orange-50 text-orange-500 p-3 rounded-2xl">{ICONS.Utensils}</div>
+                  <div className="text-left">
+                    <p className="font-bold">Minha Biblioteca</p>
+                    <p className="text-xs text-gray-400">Receitas salvas e links</p>
+                  </div>
                 </div>
-              </div>
-              {ICONS.ChevronRight}
-            </button>
-
-            <button onClick={() => setActiveScreen('agreements')} className="w-full bg-white p-6 rounded-[2rem] flex items-center justify-between shadow-sm border border-gray-100 active:scale-95 transition-transform">
-              <div className="flex items-center gap-4">
-                <div className="bg-yellow-50 text-yellow-600 p-3 rounded-2xl">{ICONS.Chat}</div>
-                <div className="text-left">
-                  <p className="font-bold text-gray-800">Nossos Combinados</p>
-                  <p className="text-xs text-gray-400">Acordos do casal</p>
+                {ICONS.ChevronRight}
+              </button>
+              <button onClick={() => setActiveScreen('agreements')} className="w-full bg-white p-6 rounded-[2.5rem] flex items-center justify-between shadow-sm active:scale-95 transition-transform">
+                <div className="flex items-center gap-4">
+                  <div className="bg-pink-50 text-pink-500 p-3 rounded-2xl">{ICONS.Couple}</div>
+                  <div className="text-left">
+                    <p className="font-bold">Combinados</p>
+                    <p className="text-xs text-gray-400">Nossos acordos</p>
+                  </div>
                 </div>
-              </div>
-              {ICONS.ChevronRight}
-            </button>
-
-            <div className="mt-8 p-6 rounded-[2rem] bg-white border border-gray-100">
-               <div className="flex items-center justify-between mb-2">
-                 <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Status de Sincronia</span>
-                 <div className={`w-2 h-2 rounded-full ${isSyncing ? 'bg-orange-400 animate-pulse' : 'bg-green-500'}`}></div>
-               </div>
-               <p className="text-xs text-gray-500">
-                 {isSyncing ? "Salvando alterações no servidor..." : "Todos os dados estão sincronizados."}
-               </p>
+                {ICONS.ChevronRight}
+              </button>
             </div>
-
-            {locationError && (
-              <div className="p-4 bg-red-50 text-red-600 text-xs rounded-2xl border border-red-100">
-                {locationError} - Tente habilitar nas configurações do seu navegador/celular.
+            
+            <div className="p-6 bg-sage-50 rounded-[2.5rem] border border-sage-100 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-sage-500 uppercase tracking-widest">Sincronização</p>
+                <p className="text-sm text-sage-600/70 font-medium">Backup automático ativo</p>
               </div>
-            )}
+              <div className={`w-3 h-3 rounded-full ${isSyncing ? 'bg-orange-400 animate-pulse' : 'bg-green-500'}`} />
+            </div>
           </div>
         );
-      default:
-        return null;
+      default: return null;
     }
   };
 
   return (
-    <div className="max-w-md mx-auto min-h-screen bg-[#F9F7F2] relative shadow-2xl flex flex-col border-x border-gray-100">
+    <div className="max-w-md mx-auto min-h-screen bg-[#F9F7F2] relative flex flex-col shadow-2xl overflow-hidden border-x border-gray-100">
       <main className="flex-1 overflow-y-auto no-scrollbar safe-pb">
-        {renderScreen()}
+        {renderActiveScreen()}
       </main>
-
       <Navigation 
         activeScreen={['recipes', 'agreements'].includes(activeScreen) ? 'more' : activeScreen} 
         onNavigate={setActiveScreen} 
