@@ -1,7 +1,6 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
 
-// Inicialização segura
 const getAIClient = () => {
   const apiKey = process.env.API_KEY;
   if (!apiKey) return null;
@@ -11,7 +10,7 @@ const getAIClient = () => {
 export const getMealSuggestions = async (ingredients: string[]) => {
   const ai = getAIClient();
   if (!ai) {
-    console.warn("API Key não configurada. IA desativada.");
+    console.warn("IA indisponível: Verifique as variáveis de ambiente no Vercel.");
     return null;
   }
   
