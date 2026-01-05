@@ -35,7 +35,13 @@ export const getMealSuggestions = async (ingredients: string[]) => {
       }
     });
     
-    return JSON.parse(response.text);
+    const text = response.text;
+    if (!text) {
+      console.warn("IA retornou uma resposta vazia.");
+      return null;
+    }
+    
+    return JSON.parse(text);
   } catch (error) {
     console.error("Erro no serviço Gemini:", error);
     return null;
