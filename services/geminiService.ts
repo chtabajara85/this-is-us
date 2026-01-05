@@ -1,15 +1,24 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+// Inicialização segura
+const getAIClient = () => {
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) return null;
+  return new GoogleGenAI({ apiKey });
+};
 
 export const getMealSuggestions = async (ingredients: string[]) => {
-  if (!process.env.API_KEY) return null;
+  const ai = getAIClient();
+  if (!ai) {
+    console.warn("API Key não configurada. IA desativada.");
+    return null;
+  }
   
   try {
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: `Sugira 3 jantares práticos para uma família com os seguintes ingredientes disponíveis: ${ingredients.join(', ')}. Foque em receitas saudáveis e rápidas.`,
+      contents: `Com base nesses ingredientes: ${ingredients.join(', ')}, sugira 3 receitas rápidas para o jantar. Responda em Português do Brasil.`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -29,7 +38,7 @@ export const getMealSuggestions = async (ingredients: string[]) => {
     
     return JSON.parse(response.text);
   } catch (error) {
-    console.error("Error fetching meal suggestions:", error);
+    console.error("Erro no serviço Gemini:", error);
     return null;
   }
 };
